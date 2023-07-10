@@ -2,13 +2,17 @@ import math
 
 import cv2
 import numpy as np
+from scipy import signal
 
+FFT_CONVOLVE = True
 
 # 1. reshape image into image cols
 # 2. reshape kernel into linear shape
 # 3. matrix multiply kernel and image cols
 # 4. reshape result into convolved image
 def convolve(mat, kernel):
+    if FFT_CONVOLVE:
+        return signal.fftconvolve(mat, kernel)
     kernel_size = kernel.shape[0]
 
     out_height = mat.shape[0] - kernel_size + 1
@@ -58,8 +62,6 @@ def Gaussian(mat, kernel_size=5, sigma=1.0):
             ) / 2 / sigma / sigma)
             gaussian_filter[i, j] = val
             gaussian_filter[j, i] = val
-
-    print(gaussian_filter)
 
     return convolve(mat, gaussian_filter)
 
@@ -145,8 +147,12 @@ def Canny(mat):
     gradient[gradient < gradient[tuple(neighbors1)].reshape(gradient.shape)] = 0
     gradient[gradient < gradient[tuple(neighbors2)].reshape(gradient.shape)] = 0
 
-    gradient[gradient > 0.3 * 255] = 255
-    # gradient[(gradient < 0.3 * 255) & (gradient > 0.1 * 255)] *= 2
+    gradient[gradient >= 100] = 255
+    gradient[(gradient < 100) & (gradient > 30)] = 150
+
+    edge_strength = np.zeros(gradient.shape, dtype=np.uint8)
+    edge_strength[gradient >= 30] = 1
+    edge_strength[gradient >= 100] = 2
 
     return gradient
 
@@ -159,36 +165,36 @@ if __name__ == '__main__':
     grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     # cv2.imshow("grayscale", grayscale)
 
-    kernel_x = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
-    convolved_x = convolve(grayscale, kernel_x)
+    # kernel_x = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+    # convolved_x = convolve(grayscale, kernel_x)
     # naive_convolved_x = naive_convolve(grayscale, kernel)
     #
     # np.testing.assert_array_equal(convolved_x, naive_convolved_x)
 
-    convolved_x[convolved_x < 0] = 0
-    convolved_x[convolved_x > 255] = 255
-    convolved_x = convolved_x.astype(np.uint8)
+    # convolved_x[convolved_x < 0] = 0
+    # convolved_x[convolved_x > 255] = 255
+    # convolved_x = convolved_x.astype(np.uint8)
 
     # cv2.imshow("convolved x", convolved_x)
 
-    kernel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
-    convolved_y = convolve(grayscale, kernel_y)
-
-    convolved_y[convolved_y < 0] = 0
-    convolved_y[convolved_y > 255] = 255
-    convolved_y = convolved_y.astype(np.uint8)
+    # kernel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+    # convolved_y = convolve(grayscale, kernel_y)
+    #
+    # convolved_y[convolved_y < 0] = 0
+    # convolved_y[convolved_y > 255] = 255
+    # convolved_y = convolved_y.astype(np.uint8)
 
     # cv2.imshow("convolved y", convolved_y)
 
-    gaussian = Gaussian(grayscale, sigma=1.4)
+    # gaussian = Gaussian(grayscale, sigma=1.4)
 
     # cv2.imshow("gaussian", gaussian.astype(np.uint8))
 
-    sobel = Sobel(gaussian)
+    # sobel = Sobel(gaussian)
+    #
+    # sobel[0][sobel[0] > 255] = 255
 
-    sobel[0][sobel[0] > 255] = 255
-
-    cv2.imshow("sobel", sobel[0].astype(np.uint8))
+    # cv2.imshow("sobel", sobel[0].astype(np.uint8))
 
     canny = Canny(grayscale)
 
