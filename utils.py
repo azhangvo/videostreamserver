@@ -1,3 +1,5 @@
+import math
+
 import cv2
 import numpy as np
 
@@ -43,6 +45,36 @@ def naive_convolve(mat, kernel):
     return convolved_mat
 
 
+def Gaussian(mat, kernel_size=5, sigma=1):
+    assert kernel_size % 2 == 1 and kernel_size > 0
+    k = (kernel_size - 1) / 2
+    gaussian_filter = np.zeros((kernel_size, kernel_size), dtype=np.float32)
+
+    for i in range(kernel_size):
+        for j in range(i + 1):
+            val = 1 / (2 * np.pi * sigma * sigma) * math.exp(-(
+                    (i + 1 - (k + 1)) * (i + 1 - (k + 1)) +
+                    (j + 1 - (k + 1)) * (j + 1 - (k + 1))
+            ) / 2 / sigma / sigma)
+            gaussian_filter[i, j] = val
+            gaussian_filter[j, i] = val
+
+    print(gaussian_filter)
+
+    return convolve(mat, gaussian_filter)
+
+
+def Sobel(mat):
+    x_kernel = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]], dtype=float)
+    y_kernel = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=float)
+
+    convolved_x = convolve(mat, x_kernel)
+    convolved_x[convolved_x == 0] = 1e-6
+    convolved_y = convolve(mat, y_kernel)
+
+    return np.sqrt(convolved_x ** 2 + convolved_y ** 2), np.arctan(convolved_y / convolved_x)
+
+
 if __name__ == '__main__':
     image = cv2.imread("./random_photo.jpg")
 
@@ -74,6 +106,12 @@ if __name__ == '__main__':
     convolved_y = convolved_y.astype(np.uint8)
 
     cv2.imshow("convolved y", convolved_y)
+
+    gaussian = Gaussian(grayscale)
+
+    print(gaussian)
+
+    cv2.imshow("gaussian", gaussian.astype(np.uint8))
 
     cv2.waitKey(0)
 
