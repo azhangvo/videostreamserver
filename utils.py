@@ -6,6 +6,7 @@ from scipy import signal
 
 FFT_CONVOLVE = True
 
+
 # 1. reshape image into image cols
 # 2. reshape kernel into linear shape
 # 3. matrix multiply kernel and image cols
@@ -77,75 +78,91 @@ def Sobel(mat):
     return np.sqrt(convolved_x * convolved_x + convolved_y * convolved_y), np.arctan(convolved_y / convolved_x)
 
 
+def naive_nms(gradient, direction):
+    def grad(y, x):
+        if y < 0 or y >= gradient.shape[0] or x < 0 or x >= gradient.shape[1]:
+            return 0
+        return gradient[y, x]
+
+    for i in range(gradient.shape[0]):
+        for j in range(gradient.shape[1]):
+            if 22.5 >= direction[i, j] > -22.5:
+                if gradient[i, j] < grad(i, j + 1) or gradient[i, j] < grad(i, j - 1):
+                    gradient[i, j] = 0
+            elif 67.5 >= direction[i, j] > 22.5:
+                if gradient[i, j] < grad(i - 1, j + 1) or gradient[i, j] < grad(i + 1, j - 1):
+                    gradient[i, j] = 0
+            elif -22.5 >= direction[i, j] > -67.5:
+                if gradient[i, j] < grad(i + 1, j + 1) or gradient[i, j] < grad(i - 1, j - 1):
+                    gradient[i, j] = 0
+            else:
+                if gradient[i, j] < grad(i + 1, j) or gradient[i, j] < grad(i - 1, j):
+                    gradient[i, j] = 0
+
+        return gradient
+
+
 def Canny(mat):
     blurred = Gaussian(mat, kernel_size=5, sigma=1.4)
     gradient, direction = Sobel(blurred)
 
     # Gradient Magnitude Thresholding
 
-    discretized_direction = np.zeros(direction.shape, dtype=np.uint8)
+    direction = np.round(direction / np.pi * 4) + 2
+
+    print(np.min(direction))
+
+    g0a = np.roll(gradient, (0, 1), axis=(0, 1))
+    g0b = np.roll(gradient, (0, -1), axis=(0, 1))
+    g1a = np.roll(gradient, (-1, 1), axis=(0, 1))
+    g1b = np.roll(gradient, (1, -1), axis=(0, 1))
+    g2a = np.roll(gradient, (1, 0), axis=(0, 1))
+    g2b = np.roll(gradient, (-1, 0), axis=(0, 1))
+    g3a = np.roll(gradient, (1, 1), axis=(0, 1))
+    g3b = np.roll(gradient, (-1, -1), axis=(0, 1))
+
+    gradient[(direction == 2) & ((g0a > gradient) | (g0b > gradient))] = 0
+    gradient[(direction == 3) & ((g1a > gradient) | (g1b > gradient))] = 0
+    gradient[((direction == 0) | (direction == 4)) & ((g2a > gradient) | (g2b > gradient))] = 0
+    gradient[(direction == 1) & ((g3a > gradient) | (g3b > gradient))] = 0
+
+    # discretized_direction = np.zeros(direction.shape, dtype=np.uint8)
 
     # 0 ( -22.5 -  22.5 ) -> left to right
     # 1 (  22.5 -  67.5 ) -> northeast to southwest
     # 2 (  67.5 - 112.5 ) -> north to south
     # 3 ( 112.5 - 157.5 ) -> northwest to southeast
-    discretized_direction[(direction > np.pi / 8) & (direction < np.pi * 3 / 8)] = 1
-    discretized_direction[(direction > np.pi * 3 / 8) | (direction < -np.pi * 3 / 8)] = 2
-    discretized_direction[(direction < -np.pi / 8) & (direction > -np.pi * 3 / 8)] = 3
+    # discretized_direction[(direction > np.pi / 8) & (direction < np.pi * 3 / 8)] = 1
+    # discretized_direction[(direction > np.pi * 3 / 8) | (direction < -np.pi * 3 / 8)] = 2
+    # discretized_direction[(direction < -np.pi / 8) & (direction > -np.pi * 3 / 8)] = 3
 
     # neighbor_directions = np.array([
-    #     [[0, 0], [1, -1]],
-    #     [[1, -1], [-1, 1]],
-    #     [[1, -1], [0, 0]],
-    #     [[1, -1], [1, -1]]
-    # ], dtype=np.uint8)
-    neighbor_directions = np.array([
-        [[0, 1], [0, -1]],
-        [[-1, 1], [1, -1]],
-        [[1, 0], [-1, 0]],
-        [[1, 1], [-1, -1]]
-    ])
-
-    # gradient_neighbors = np.zeros((*gradient.shape, 2, 2), dtype=np.uint8)
-
-    # print(neighbor_directions[0] + np.array([0, 0]))
-
-    # for i in range(gradient.shape[0]):
-    #     for j in range(gradient.shape[1]):
-    #         for dir in neighbor_directions[discretized_direction[i][j]]:
-    #             ny = i + dir[0]
-    #             nx = j + dir[1]
-    #             if ny < 0 or nx < 0 or ny >= gradient.shape[0] or nx >= gradient.shape[1]:
-    #                 continue
-    #             if gradient[i, j] < gradient[ny, nx]:
-    #                 gradient[i, j] = 0
-    #         # gradient_neighbors[i][j] = neighbor_directions[discretized_direction[i][j]] + np.array([i, j])
-
-    # print(gradient_neighbors.shape)
-    #
-    # gradient[gradient < gradient[gradient_neighbors[:, :, 0, :]]] = 0
-    # gradient[gradient < gradient[gradient_neighbors[:, :, 1, :]]] = 0
+    #     [[0, 1], [0, -1]],
+    #     [[-1, 1], [1, -1]],
+    #     [[1, 0], [-1, 0]],
+    #     [[1, 1], [-1, -1]]
+    # ])
 
     # Please don't look its 2am and my brain wont work
 
-    gradient_neighbors = np.array(list(zip(np.repeat(np.arange(gradient.shape[0]), gradient.shape[1]),
-                                           np.tile(np.arange(gradient.shape[1]), gradient.shape[0])))).transpose()
-
-    neighbors1 = gradient_neighbors + neighbor_directions[discretized_direction.flatten()][:, 0, :].transpose()
-    neighbors2 = gradient_neighbors + neighbor_directions[discretized_direction.flatten()][:, 1, :].transpose()
-
-    neighbors1[0][neighbors1[0, :] < 0] = 0
-    neighbors1[0][neighbors1[0] >= gradient.shape[0]] = gradient.shape[0] - 1
-    neighbors1[1][neighbors1[1, :] < 0] = 0
-    neighbors1[1][neighbors1[1] >= gradient.shape[1]] = gradient.shape[1] - 1
-    neighbors2[0][neighbors2[0, :] < 0] = 0
-    neighbors2[0][neighbors2[0] >= gradient.shape[0]] = gradient.shape[0] - 1
-    neighbors2[1][neighbors2[1, :] < 0] = 0
-    neighbors2[1][neighbors2[1] >= gradient.shape[1]] = gradient.shape[1] - 1
-
-    # gradient = gradient.flatten()
-    gradient[gradient < gradient[tuple(neighbors1)].reshape(gradient.shape)] = 0
-    gradient[gradient < gradient[tuple(neighbors2)].reshape(gradient.shape)] = 0
+    # gradient_neighbors = np.array(list(zip(np.repeat(np.arange(gradient.shape[0]), gradient.shape[1]),
+    #                                        np.tile(np.arange(gradient.shape[1]), gradient.shape[0])))).transpose()
+    #
+    # neighbors1 = gradient_neighbors + neighbor_directions[discretized_direction.flatten()][:, 0, :].transpose()
+    # neighbors2 = gradient_neighbors + neighbor_directions[discretized_direction.flatten()][:, 1, :].transpose()
+    #
+    # neighbors1[0][neighbors1[0, :] < 0] = 0
+    # neighbors1[0][neighbors1[0] >= gradient.shape[0]] = gradient.shape[0] - 1
+    # neighbors1[1][neighbors1[1, :] < 0] = 0
+    # neighbors1[1][neighbors1[1] >= gradient.shape[1]] = gradient.shape[1] - 1
+    # neighbors2[0][neighbors2[0, :] < 0] = 0
+    # neighbors2[0][neighbors2[0] >= gradient.shape[0]] = gradient.shape[0] - 1
+    # neighbors2[1][neighbors2[1, :] < 0] = 0
+    # neighbors2[1][neighbors2[1] >= gradient.shape[1]] = gradient.shape[1] - 1
+    #
+    # # gradient = gradient.flatten()
+    # gradient[gradient < gradient[tuple(neighbors1)].reshape(gradient.shape)] = 0
+    # gradient[gradient < gradient[tuple(neighbors2)].reshape(gradient.shape)] = 0
 
     gradient[gradient >= 100] = 255
     gradient[(gradient < 100) & (gradient > 30)] = 150
@@ -160,7 +177,7 @@ def Canny(mat):
 if __name__ == '__main__':
     image = cv2.imread("./random_photo.jpg")
 
-    cv2.imshow("original", image)
+    # cv2.imshow("original", image)
 
     grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     # cv2.imshow("grayscale", grayscale)
@@ -207,5 +224,5 @@ if __name__ == '__main__':
     cv2.imshow("grayscale", grayscale)
 
     cv2.waitKey(0)
-
-    cv2.destroyAllWindows()
+    #
+    # cv2.destroyAllWindows()
