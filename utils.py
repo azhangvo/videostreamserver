@@ -110,8 +110,6 @@ def Canny(mat):
 
     direction = np.round(direction / np.pi * 4) + 2
 
-    print(np.min(direction))
-
     g0a = np.roll(gradient, (0, 1), axis=(0, 1))
     g0b = np.roll(gradient, (0, -1), axis=(0, 1))
     g1a = np.roll(gradient, (-1, 1), axis=(0, 1))
@@ -164,14 +162,35 @@ def Canny(mat):
     # gradient[gradient < gradient[tuple(neighbors1)].reshape(gradient.shape)] = 0
     # gradient[gradient < gradient[tuple(neighbors2)].reshape(gradient.shape)] = 0
 
-    gradient[gradient >= 100] = 255
-    gradient[(gradient < 100) & (gradient > 30)] = 150
+    # gradient[gradient >= 100] = 255
+    # gradient[(gradient < 100) & (gradient > 30)] = 150
+
+    # Double Thresholding
 
     edge_strength = np.zeros(gradient.shape, dtype=np.uint8)
     edge_strength[gradient >= 30] = 1
     edge_strength[gradient >= 100] = 2
+    edge_strength = np.pad(edge_strength, 1)
 
-    return gradient
+    # Hysteresis
+
+    q = np.array(np.where(edge_strength == 2)).transpose().tolist()
+    directions = [[-1, 1], [0, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [0, -1], [1, -1]]
+    while len(q):
+        ele = q.pop()
+        for dir in directions:
+            if edge_strength[ele[0] + dir[0], ele[1] + dir[1]] == 1:
+                edge_strength[ele[0] + dir[0], ele[1] + dir[1]] = 2
+                q.append([ele[0] + dir[0], ele[1] + dir[1]])
+
+    final = np.zeros(gradient.shape)
+    final[edge_strength[1:-1, 1:-1] == 2] = 255
+
+    return final
+
+
+def HoughLines(edge_mat):
+    edge_points = np.where(edge_mat == 255)
 
 
 if __name__ == '__main__':
@@ -224,5 +243,5 @@ if __name__ == '__main__':
     cv2.imshow("grayscale", grayscale)
 
     cv2.waitKey(0)
-    #
-    # cv2.destroyAllWindows()
+
+    cv2.destroyAllWindows()

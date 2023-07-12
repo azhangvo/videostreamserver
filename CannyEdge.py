@@ -16,7 +16,7 @@ cv2.namedWindow("canny")
 
 while True:
     if not server.hasNewImg:
-        time.sleep(0.05)
+        cv2.waitKey(10)
         continue
 
     img = server.get_img()
