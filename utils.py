@@ -3,6 +3,7 @@ import math
 import cv2
 import numpy as np
 from scipy import signal
+from scipy.ndimage import maximum_filter
 
 FFT_CONVOLVE = True
 
@@ -190,15 +191,24 @@ def Canny(mat):
 
 
 def HoughLines(edge_mat):
-    edge_points = np.where(edge_mat == 255)
+    edge_points = np.array(np.where(edge_mat == 255)).transpose()
+
+    thetas = np.linspace(0, np.pi, 360)[:-1]
+    rhos = np.matmul(edge_points, np.array([np.sin(thetas), np.cos(thetas)])).flatten()
+
+    hist = np.histogram2d(rhos, np.tile(thetas, edge_points.shape[0]), bins=(5000, thetas.size))
+
+    return hist, maximum_filter(hist[0], size=9)
 
 
 if __name__ == '__main__':
-    image = cv2.imread("./random_photo.jpg")
+    image = cv2.imread("./random_photo3.png")
 
     # cv2.imshow("original", image)
 
     grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    print(grayscale.shape)
     # cv2.imshow("grayscale", grayscale)
 
     # kernel_x = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
@@ -241,6 +251,39 @@ if __name__ == '__main__':
     cv2.imshow("canny truth", canny_truth)
 
     cv2.imshow("grayscale", grayscale)
+
+    hough = HoughLines(canny)
+
+    cv2.imshow("hist", hough[0][0] / np.max(hough[0][0]))
+
+    mat = np.repeat(hough[0][0] / np.max(hough[0][0]), 3).reshape((*hough[0][0].shape, 3))
+    mat[(hough[1] == hough[0][0]) & (hough[1] >= 50), 0] = 0
+    mat[(hough[1] == hough[0][0]) & (hough[1] >= 50), 1] = 0
+    mat[(hough[1] == hough[0][0]) & (hough[1] >= 50), 2] = 255
+
+    mat = cv2.resize(mat, (1000, 1000))
+
+    cv2.imshow("hist2", mat)
+
+    lines = np.array(np.where((hough[1] == hough[0][0]) & (hough[1] >= 50))).transpose()
+
+    canny = cv2.cvtColor(canny.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+
+    for line in lines:
+        rho, theta = line
+        rho = hough[0][1][rho]
+        theta = hough[0][2][theta]
+        a = np.cos(theta)
+        b = np.sin(theta)
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int(x0 + 3000 * (-b))
+        y1 = int(y0 + 3000 * (a))
+        x2 = int(x0 - 3000 * (-b))
+        y2 = int(y0 - 3000 * (a))
+        cv2.line(canny, (x1, y1), (x2, y2), (0, 255, 0), 1)
+
+    cv2.imshow("test", canny)
 
     cv2.waitKey(0)
 
